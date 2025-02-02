@@ -9,6 +9,8 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentCardTypeController;
 use App\Http\Controllers\PaymentTypeController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductReviewController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\StatusOrderController;
 use App\Http\Controllers\UserAddressController;
@@ -39,5 +41,7 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         'payment-card-types' => PaymentCardTypeController::class,
         'user-payment-cards' => UserPaymentCard::class,
         'statuses' => StatusController::class,
+        'reviews' => ReviewController::class,
+        'product.reviews' => ProductReviewController::class,
     ]);
 });
