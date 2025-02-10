@@ -12,7 +12,7 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
-        $products = Product::factory()->count(250)->create();
+        $products = Product::factory()->count(250000)->create();
 
         foreach ($products as $product) {
             $product->stocks()->create([

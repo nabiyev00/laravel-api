@@ -10,76 +10,101 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Stock;
 use App\Models\UserAddress;
+use Illuminate\Http\JsonResponse;
 
 class OrderController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
-        return auth()->user()->orders;
+        $orders = auth()->user()->orders();
+        if (request()->has('status_id')) {
+            return $this->response(
+                OrderResource::collection($orders->where('status_id', request('status_id'))->paginate(10))
+            );
+        }
+        return $this->response(
+            OrderResource::collection($orders->paginate(10))
+        );
     }
 
-    public function store(StoreOrderRequest $request)
+    public function store(StoreOrderRequest $request): JsonResponse
     {
-        $sum = 0;
-        $products = [];
-        $notFoundProducts = [];
-        $address = UserAddress::find($request->address_id);
+        try {
+            $sum = 0;
+            $products = [];
+            $notFoundProducts = [];
 
-        foreach ($request->products as $requestProduct) {
-            $product = Product::with('stocks')->find($requestProduct['product_id']);
-            $product->quantity = $requestProduct['quantity'];
-
-            if (
-                $product->stocks()->find($requestProduct['stock_id']) &&
-                $product->stocks()->find($requestProduct['stock_id'])->quantity >= $requestProduct['quantity']
-            ) {
-                $productWithStock = $product->withStock($requestProduct['stock_id']);
-                $sum += $requestProduct['quantity'] * $product->price;
-                $productResource = new ProductResource($productWithStock);
-
-                $products[] = $productResource->resolve();
-            } else {
-                $notFoundProducts[] = $requestProduct;
+            $address = UserAddress::find($request->address_id);
+            if (!$address) {
+                return $this->error('Address not found', 404);
             }
-        }
-        if ($notFoundProducts !== []) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Some products not found or does not have enough stock',
-            ]);
-        }
-        if ($products !== [] && $sum > 0) {
-            $order = auth()->user()->orders()->create([
-                'comment' => $request->comment,
-                'delivery_method_id' => $request->delivery_method_id,
-                'payment_type_id' => $request->payment_type_id,
-                'sum' => $sum,
-                'status_id' => in_array($request->payment_type_id, [1, 2]) ? 1 : 10,
-                'address' => $address,
-                'products' => $products,
-            ]);
 
-            if ($order) {
-                foreach ($products as $product) {
-                    $stock = Stock::find($product['inventory'][0]['id']);
-                    $stock->quantity -= $product['order_quantity'];
-                    $stock->save();
+            foreach ($request->products as $requestProduct) {
+                $product = Product::with('stocks')->find($requestProduct['product_id']);
+
+                if (!$product) {
+                    $notFoundProducts[] = $requestProduct;
+                    continue;
+                }
+
+                $stock = $product->stocks()->find($requestProduct['stock_id']);
+
+                if ($stock && $stock->quantity >= $requestProduct['quantity']) {
+                    $productWithStock = $product->withStock($requestProduct['stock_id']);
+                    $sum += $requestProduct['quantity'] * $product->price;
+
+                    $productResource = new ProductResource($productWithStock);
+                    $productData = $productResource->resolve();
+                    $productData['order_quantity'] = $requestProduct['quantity']; // Buyurtma miqdorini qo‘shamiz
+
+                    $products[] = $productData;
+                } else {
+                    $notFoundProducts[] = $requestProduct;
                 }
             }
-            return response()->json([
-                'success' => true,
-                'message' => 'Order created successfully',
-            ]);
+
+            if (!empty($notFoundProducts)) {
+                return $this->error(
+                    'Some products not found or do not have enough stock',
+                    400,
+                    ['not_found_products' => $notFoundProducts]
+                );
+            }
+
+            if (!empty($products) && $sum > 0) {
+                $order = auth()->user()->orders()->create([
+                    'comment' => $request->comment,
+                    'delivery_method_id' => $request->delivery_method_id,
+                    'payment_type_id' => $request->payment_type_id,
+                    'sum' => $sum,
+                    'status_id' => in_array($request->payment_type_id, [1, 2]) ? 1 : 10,
+                    'address' => $address->toArray(), // Ob'ekt emas, massiv saqlash yaxshiroq
+                    'products' => $products,
+                ]);
+
+                if ($order) {
+                    foreach ($products as $product) {
+                        $stock = Stock::find($product['inventory'][0]['id']);
+                        if ($stock) {
+                            $stock->decrement('quantity', $product['order_quantity']);
+                        }
+                    }
+                }
+
+                return $this->success('Order created successfully', 201, ['order' => $order]);
+            }
+
+            return $this->error('Something went wrong', 500);
+        } catch (\Exception $e) {
+            return $this->error('Internal server error', 500, ['error' => $e->getMessage()]);
         }
-        return response()->json([
-            'success' => false,
-            'message' => 'Something went wrong',
-        ]);
     }
 
-    public function show(Order $order)
+    public function show(Order $order): JsonResponse
     {
-        return new OrderResource($order);
+        return $this->response([
+            'orders' => new OrderResource($order)
+        ]);
     }
 
     public function update(UpdateOrderRequest $request, Order $order)

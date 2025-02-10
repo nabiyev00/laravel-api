@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
+use App\Http\Resources\CategoryResource;
 use App\Models\Category;
+use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
-        return Category::all();
+        return $this->response(CategoryResource::collection(Category::cursorPaginate(25)));
     }
 
     public function store(StoreCategoryRequest $request)
@@ -18,9 +20,9 @@ class CategoryController extends Controller
         //
     }
 
-    public function show(Category $category)
+    public function show(Category $category): JsonResponse
     {
-        return $category;
+        return $this->response(new CategoryResource($category));
     }
 
     public function update(UpdateCategoryRequest $request, Category $category)

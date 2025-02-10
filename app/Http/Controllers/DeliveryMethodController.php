@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDeliveryMethodRequest;
 use App\Http\Requests\UpdateDeliveryMethodRequest;
+use App\Http\Resources\DeliveryMethodResource;
 use App\Models\DeliveryMethod;
+use Illuminate\Http\JsonResponse;
 
 class DeliveryMethodController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
-        return DeliveryMethod::all();
+        return $this->response(DeliveryMethodResource::collection(DeliveryMethod::cursorPaginate(25)));
     }
 
     /**

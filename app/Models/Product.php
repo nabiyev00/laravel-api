@@ -52,24 +52,23 @@ class Product extends Model
     /** @use HasFactory<\Database\Factories\ProductFactory> */
     use HasFactory, HasTranslations, SoftDeletes;
 
-    protected $fillable = ['category_id', 'name', 'description', 'price'];
-
     public array $translatable = ['name', 'description'];
+    protected $fillable = ['category_id', 'name', 'description', 'price'];
 
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function stocks(): HasMany
-    {
-        return $this->hasMany(Stock::class);
-    }
-
     public function withStock($stockId): static
     {
         $this->stocks = [$this->stocks()->findOrFail($stockId)];
         return $this;
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(Stock::class);
     }
 
     public function favoriteUsers(): BelongsToMany
